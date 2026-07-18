@@ -1,0 +1,17 @@
+name: Deploy to Komodo VPS
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Trigger Deploy
+        run: |
+          curl -X POST "${{ secrets.KOMODO_WEBHOOK_URL }}" \
+          -H "Content-Type: application/json" \
+          -d "{\"secret\":\"${{ secrets.KOMODO_WEBHOOK_SECRET }}\",\"event\":\"deploy\",\"source\":\"github-actions\"}"
