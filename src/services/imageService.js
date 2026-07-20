@@ -59,7 +59,6 @@ const ImageService = {
   // ─────────────────────────────────────────────────────────────────────────
   async generate(prompt, asetImageBase64 = null, size = "1024x1792") {
     try {
-      console.log(`   [IMG] generate → mode=${asetImageBase64 ? 'image-to-image' : 'text-to-image'} size=${size} OPENAI_IMAGE_KEY=${process.env.OPENAI_IMAGE_KEY ? 'set(**'+process.env.OPENAI_IMAGE_KEY.slice(-4)+')' : 'MISSING!'}`);
 
       // ── Mode image-to-image: ada aset → gunakan images.edit() ──
       if (asetImageBase64) {
@@ -123,9 +122,7 @@ const ImageService = {
       return { success: true, imageBase64: base64 };
 
     } catch (error) {
-      console.error('   [IMG] generate ❌ error:', error.message);
-      if (error.status) console.error(`   [IMG]   HTTP status: ${error.status}`);
-      if (error.error) console.error(`   [IMG]   API error:`, JSON.stringify(error.error));
+      console.error('Image generation error:', error);
       return {
         success: false,
         error: error.message,

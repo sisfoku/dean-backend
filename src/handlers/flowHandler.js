@@ -105,8 +105,6 @@ const FlowHandler = {
 
     if (!text && !photo) return;
 
-    console.log(`\n➤ [FLOW] handle userId=${userId} text="${text?.substring(0,60) || ''}" photo=${photo ? 'YES' : 'NO'}`);
-
     // Upsert user ke DB
     await SessionService.upsertUser({
       id: userId,
@@ -130,7 +128,6 @@ const FlowHandler = {
     let session = await SessionService.getSession(userId);
 
     if (!session || SessionService.isExpired(session)) {
-      console.log(`   [FLOW] → Tidak ada sesi atau sesi expired — reset ke prompting`);
       await SessionService.createSession(userId);
       return bot.sendMessage(
         userId,
@@ -141,24 +138,20 @@ const FlowHandler = {
     }
 
     const currentStep = session.step;
-    console.log(`   [FLOW] → currentStep='${currentStep}'`);
 
     // ══════════════════════════════════════════════════════════════════════
     // STEP 1 ─ prompting: user memberikan prompt pertama kali
     // ══════════════════════════════════════════════════════════════════════
     if (currentStep === 'prompting') {
       if (!text) return bot.sendMessage(userId, '📝 Silakan kirimkan deskripsi teks desain kamu terlebih dahulu.');
-      console.log(`   [FLOW] → STEP prompting: memanggil AIService.summarizePrompt...`);
 
       await bot.sendMessage(userId, '⏳ *Sedang menyusun kesimpulan dari prompt kamu...*', { parse_mode: 'Markdown' });
 
       const summaryResult = await AIService.summarizePrompt(text);
       if (!summaryResult) {
-        console.error(`   [FLOW] ❌ AIService.summarizePrompt mengembalikan null untuk userId=${userId}`);
         return bot.sendMessage(userId, '❌ Maaf, terjadi kesalahan saat menyusun kesimpulan. Coba ulangi prompt kamu.');
       }
 
-      console.log(`   [FLOW] → summarizePrompt OK, update session → konfirmasi`);
       await SessionService.updateSession(userId, 'konfirmasi', {
         summary: summaryResult.english_prompt,
         summary_id: summaryResult.summary_id,
