@@ -73,7 +73,7 @@ const ImageService = {
 
         const response = await openai.images.edit({
           model: "gpt-image-2",
-          image: asetFiles[0],
+          image: asetFiles.length === 1 ? asetFiles[0] : asetFiles,
           prompt: prompt,
           size: size,
           quality: "medium",
@@ -196,7 +196,7 @@ Respond in English only.`
 
       const response = await openai.images.edit({
         model: "gpt-image-2",
-        image: asetFiles[0],
+        image: asetFiles.length === 1 ? asetFiles[0] : asetFiles,
         prompt: promptUltraDetail,
         size: size,
         quality: "medium",

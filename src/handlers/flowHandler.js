@@ -157,7 +157,7 @@ const FlowHandler = {
         summary_id: summaryResult.summary_id,
         image_size: summaryResult.image_size,
         // Reset semua input tambahan
-        aset_image: null,
+        aset_images: [],
         referensi_images: [],
       });
 
