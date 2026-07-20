@@ -7,6 +7,7 @@ const SessionService = {
   // Upsert user
   async upsertUser(telegramUser) {
     const { id, username, first_name } = telegramUser;
+    console.log(`   [DB] upsertUser → id=${id} username=@${username} first_name=${first_name}`);
     await db.query(`
       INSERT INTO telegram_users (id, username, first_name)
       VALUES ($1, $2, $3)
@@ -15,17 +16,25 @@ const SessionService = {
             first_name = $3,
             updated_at = NOW()
     `, [id, username, first_name]);
+    console.log(`   [DB] upsertUser → OK`);
   },
 
   // Get active (non-expired) session for user
   async getSession(userId) {
+    console.log(`   [DB] getSession → userId=${userId}`);
     const result = await db.query(`
       SELECT * FROM sessions
       WHERE user_id = $1
       ORDER BY created_at DESC
       LIMIT 1
     `, [userId]);
-    return result.rows[0] || null;
+    const session = result.rows[0] || null;
+    if (session) {
+      console.log(`   [DB] getSession → found step='${session.step}' expires_at=${session.expires_at}`);
+    } else {
+      console.log(`   [DB] getSession → no session found`);
+    }
+    return session;
   },
 
   // Check if session is expired
@@ -36,6 +45,7 @@ const SessionService = {
 
   // Create new session
   async createSession(userId) {
+    console.log(`   [DB] createSession → userId=${userId} (hapus sesi lama, buat baru)`);
     // Delete old sessions for this user
     await db.query(`DELETE FROM sessions WHERE user_id = $1`, [userId]);
 
@@ -44,11 +54,13 @@ const SessionService = {
       VALUES ($1, 'prompting', '{}', NOW() + INTERVAL '${EXPIRY_HOURS} hours')
       RETURNING *
     `, [userId]);
+    console.log(`   [DB] createSession → OK id=${result.rows[0]?.id}`);
     return result.rows[0];
   },
 
   // Update session step and data
   async updateSession(userId, step, newData = {}) {
+    console.log(`   [DB] updateSession → userId=${userId} step='${step}'`);
     const result = await db.query(`
       UPDATE sessions
       SET step = $2,
@@ -58,6 +70,8 @@ const SessionService = {
       WHERE user_id = $1
       RETURNING *
     `, [userId, step, JSON.stringify(newData)]);
+    if (!result.rows[0]) console.warn(`   [DB] updateSession → WARNING: tidak ada row yang terupdate untuk userId=${userId}`);
+    else console.log(`   [DB] updateSession → OK`);
     return result.rows[0];
   },
 
@@ -81,10 +95,12 @@ const SessionService = {
 
   // Save to generation history
   async saveGeneration(userId, sessionId, prompt, imageUrl, designType, status = 'success') {
+    console.log(`   [DB] saveGeneration → userId=${userId} designType=${designType} status=${status} imageUrl=${imageUrl ? 'set' : 'null'}`);
     await db.query(`
       INSERT INTO generations (user_id, session_id, prompt, image_url, design_type, status)
       VALUES ($1, $2, $3, $4, $5, $6)
     `, [userId, sessionId, prompt, imageUrl, designType, status]);
+    console.log(`   [DB] saveGeneration → OK`);
   },
 
   // Save generated asset to Supabase Storage and DB
@@ -93,9 +109,10 @@ const SessionService = {
     
     // Fallback if not configured
     if (!process.env.SUPABASE_URL || !process.env.SUPABASE_KEY) {
-      console.warn("⚠️ Supabase credentials not found. Skipping upload.");
+      console.warn(`   [SUPABASE] ⚠️ SUPABASE_URL atau SUPABASE_KEY tidak diset. Upload dilewati.`);
       return null;
     }
+    console.log(`   [SUPABASE] saveAssetLocally → userId=${userId} uploading...`);
 
     const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY);
     
@@ -111,9 +128,10 @@ const SessionService = {
       });
 
     if (error) {
-      console.error("❌ Gagal upload ke Supabase:", error);
+      console.error(`   [SUPABASE] ❌ Gagal upload ke Supabase:`, error.message, error);
       return null;
     }
+    console.log(`   [SUPABASE] Upload OK → file: ${filename}`);
 
     // Get public URL
     const { data: urlData } = supabase.storage

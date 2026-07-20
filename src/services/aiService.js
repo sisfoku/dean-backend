@@ -4,6 +4,7 @@ const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 const AIService = {
   async summarizePrompt(userPrompt, previousSummary = null) {
     try {
+      console.log(`   [AI] summarizePrompt → prompt="${userPrompt.substring(0,80)}" hasPrevSummary=${!!previousSummary}`);
       const messages = [
         {
           role: 'system',
@@ -23,9 +24,11 @@ const AIService = {
         messages: messages,
       });
 
-      return JSON.parse(response.choices[0].message.content);
+      const parsed = JSON.parse(response.choices[0].message.content);
+      console.log(`   [AI] summarizePrompt → OK image_size=${parsed.image_size}`);
+      return parsed;
     } catch (error) {
-      console.error('Summarize error:', error);
+      console.error('   [AI] summarizePrompt ❌ error:', error.message, error);
       return null;
     }
   },
@@ -33,6 +36,7 @@ const AIService = {
   async analyzeMultipleImagesAndSummarize(existingSummary, imagesBase64Array, userNotes) {
     try {
       const hasImages = imagesBase64Array && imagesBase64Array.length > 0;
+      console.log(`   [AI] analyzeMultipleImagesAndSummarize → images=${imagesBase64Array?.length || 0} notes="${userNotes?.substring(0,60)}"`);
       
       const content = [
         {
@@ -67,9 +71,11 @@ const AIService = {
         ],
         max_tokens: 1500
       });
-      return JSON.parse(response.choices[0].message.content);
+      const parsed = JSON.parse(response.choices[0].message.content);
+      console.log(`   [AI] analyzeMultipleImagesAndSummarize → OK image_size=${parsed.image_size}`);
+      return parsed;
     } catch (error) {
-      console.error('Image analysis error:', error);
+      console.error('   [AI] analyzeMultipleImagesAndSummarize ❌ error:', error.message, error);
       return null;
     }
   },

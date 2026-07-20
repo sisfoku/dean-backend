@@ -21,9 +21,9 @@ const FlowHandler = {
 
   // ─── Generate & kirim gambar ke user ─────────────────────────────────────
   async generateAndSendImage(bot, userId, session) {
-    const asetImages      = session.data.aset_images || [];
+    const asetImages = session.data.aset_images || [];
     const referensiImages = session.data.referensi_images;
-    const instruksiUser   = session.data.summary_id || session.data.summary || '';
+    const instruksiUser = session.data.summary_id || session.data.summary || '';
 
     // Mode generateWithReference: ada gambar aset DAN minimal 1 referensi
     if (asetImages.length > 0 && referensiImages && referensiImages.length > 0) {
@@ -72,7 +72,7 @@ const FlowHandler = {
     );
 
     const finalPrompt = session.data.summary;
-    const imageSize   = session.data.image_size || '1024x1792';
+    const imageSize = session.data.image_size || '1024x1792';
     // Teruskan aset_images agar generate() pakai image-to-image jika ada aset
     const result = await ImageService.generate(finalPrompt, asetImages.length > 0 ? asetImages : null, imageSize);
 
@@ -105,12 +105,15 @@ const FlowHandler = {
 
     if (!text && !photo) return;
 
+    console.log(`\n➤ [FLOW] handle userId=${userId} text="${text?.substring(0,60) || ''}" photo=${photo ? 'YES' : 'NO'}`);
+
     // Upsert user ke DB
     await SessionService.upsertUser({
-      id:         userId,
-      username:   msg.chat.username,
+      id: userId,
+      username: msg.chat.username,
       first_name: msg.chat.first_name,
     });
+
 
     // ── /start atau /baru ──────────────────────────────────────────────────
     if (text === '/start' || text === '/baru' || ['baru', 'start'].includes(text?.toLowerCase())) {
@@ -127,6 +130,7 @@ const FlowHandler = {
     let session = await SessionService.getSession(userId);
 
     if (!session || SessionService.isExpired(session)) {
+      console.log(`   [FLOW] → Tidak ada sesi atau sesi expired — reset ke prompting`);
       await SessionService.createSession(userId);
       return bot.sendMessage(
         userId,
@@ -137,26 +141,30 @@ const FlowHandler = {
     }
 
     const currentStep = session.step;
+    console.log(`   [FLOW] → currentStep='${currentStep}'`);
 
     // ══════════════════════════════════════════════════════════════════════
     // STEP 1 ─ prompting: user memberikan prompt pertama kali
     // ══════════════════════════════════════════════════════════════════════
     if (currentStep === 'prompting') {
       if (!text) return bot.sendMessage(userId, '📝 Silakan kirimkan deskripsi teks desain kamu terlebih dahulu.');
+      console.log(`   [FLOW] → STEP prompting: memanggil AIService.summarizePrompt...`);
 
       await bot.sendMessage(userId, '⏳ *Sedang menyusun kesimpulan dari prompt kamu...*', { parse_mode: 'Markdown' });
 
       const summaryResult = await AIService.summarizePrompt(text);
       if (!summaryResult) {
+        console.error(`   [FLOW] ❌ AIService.summarizePrompt mengembalikan null untuk userId=${userId}`);
         return bot.sendMessage(userId, '❌ Maaf, terjadi kesalahan saat menyusun kesimpulan. Coba ulangi prompt kamu.');
       }
 
+      console.log(`   [FLOW] → summarizePrompt OK, update session → konfirmasi`);
       await SessionService.updateSession(userId, 'konfirmasi', {
-        summary:    summaryResult.english_prompt,
+        summary: summaryResult.english_prompt,
         summary_id: summaryResult.summary_id,
         image_size: summaryResult.image_size,
         // Reset semua input tambahan
-        aset_image:       null,
+        aset_image: null,
         referensi_images: [],
       });
 
@@ -195,7 +203,7 @@ const FlowHandler = {
         await SessionService.updateSession(userId, 'menunggu_aset', {
           ...session.data,
           aset_images: [],
-          aset_notes:  [],
+          aset_notes: [],
         });
         return bot.sendMessage(
           userId,
@@ -212,7 +220,7 @@ const FlowHandler = {
       if (['referensi', 'punya referensi', 'ada referensi'].includes(lowerText)) {
         await SessionService.updateSession(userId, 'menunggu_referensi', {
           ...session.data,
-          referensi_notes:  [],
+          referensi_notes: [],
           referensi_images: [],
         });
         return bot.sendMessage(
@@ -303,7 +311,7 @@ const FlowHandler = {
 
       await SessionService.updateSession(userId, 'konfirmasi', {
         ...session.data,
-        summary:    newSummaryResult.english_prompt,
+        summary: newSummaryResult.english_prompt,
         summary_id: newSummaryResult.summary_id,
         image_size: newSummaryResult.image_size || session.data.image_size,
       });
@@ -323,7 +331,7 @@ const FlowHandler = {
       const lowerText = text ? text.toLowerCase().trim() : '';
 
       const asetImages = session.data.aset_images || [];
-      const asetNotes  = session.data.aset_notes  || [];
+      const asetNotes = session.data.aset_notes || [];
 
       // ── User berkata sudah ─────────────────────────────────────────────
       if (lowerText === 'sudah' || lowerText === 'done' || lowerText === 'selesai') {
@@ -345,11 +353,11 @@ const FlowHandler = {
         const updatedData = {
           ...session.data,
           aset_images: asetImages,
-          aset_notes:  asetNotes,
+          aset_notes: asetNotes,
         };
 
         if (newSummaryResult) {
-          updatedData.summary    = newSummaryResult.english_prompt;
+          updatedData.summary = newSummaryResult.english_prompt;
           updatedData.summary_id = newSummaryResult.summary_id;
           updatedData.image_size = newSummaryResult.image_size || session.data.image_size;
         }
@@ -357,7 +365,7 @@ const FlowHandler = {
         await SessionService.updateSession(userId, 'konfirmasi', updatedData);
 
         const summaryToShow = updatedData.summary_id || updatedData.summary || '(Gunakan gambar aset sebagai elemen utama desain)';
-        const promptToShow  = updatedData.summary || '';
+        const promptToShow = updatedData.summary || '';
         return bot.sendMessage(
           userId,
           buildConfirmationMenu(summaryToShow, promptToShow, `Kesimpulan diperbarui dengan ${asetImages.length} gambar aset:`),
@@ -374,16 +382,16 @@ const FlowHandler = {
       if (photo && photo.length > 0) {
         const fileId = photo[photo.length - 1].file_id;
         try {
-          const fileLink      = await bot.getFileLink(fileId);
+          const fileLink = await bot.getFileLink(fileId);
           const fetchResponse = await fetch(fileLink);
-          const arrayBuffer   = await fetchResponse.arrayBuffer();
-          const base64        = Buffer.from(arrayBuffer).toString('base64');
+          const arrayBuffer = await fetchResponse.arrayBuffer();
+          const base64 = Buffer.from(arrayBuffer).toString('base64');
 
           asetImages.push(base64);
           await SessionService.updateSession(userId, 'menunggu_aset', {
             ...session.data,
             aset_images: asetImages,
-            aset_notes:  asetNotes,
+            aset_notes: asetNotes,
           });
           return bot.sendMessage(
             userId,
@@ -401,7 +409,7 @@ const FlowHandler = {
       await SessionService.updateSession(userId, 'menunggu_aset', {
         ...session.data,
         aset_images: asetImages,
-        aset_notes:  asetNotes,
+        aset_notes: asetNotes,
       });
 
       return bot.sendMessage(
@@ -420,7 +428,7 @@ const FlowHandler = {
     if (currentStep === 'menunggu_referensi') {
       const lowerText = text ? text.toLowerCase().trim() : '';
 
-      const referensiNotes  = session.data.referensi_notes  || [];
+      const referensiNotes = session.data.referensi_notes || [];
       const referensiImages = session.data.referensi_images || [];
 
       // ── User berkata sudah ──────────────────────────────────────────────
@@ -432,7 +440,7 @@ const FlowHandler = {
         await bot.sendMessage(userId, '⏳ *Menganalisis referensi desain dan memperbarui kesimpulan...*', { parse_mode: 'Markdown' });
 
         const combinedNotes = referensiNotes.join('\n');
-        const prevContext   = session.data.summary_id || session.data.summary;
+        const prevContext = session.data.summary_id || session.data.summary;
 
         try {
           const newSummaryResult = await AIService.analyzeMultipleImagesAndSummarize(
@@ -447,9 +455,9 @@ const FlowHandler = {
 
           await SessionService.updateSession(userId, 'konfirmasi', {
             ...session.data,
-            summary:          newSummaryResult.english_prompt,
-            summary_id:       newSummaryResult.summary_id,
-            image_size:       newSummaryResult.image_size || session.data.image_size,
+            summary: newSummaryResult.english_prompt,
+            summary_id: newSummaryResult.summary_id,
+            image_size: newSummaryResult.image_size || session.data.image_size,
             referensi_images: referensiImages, // Simpan untuk generateWithReference jika ada aset
           });
 
@@ -471,10 +479,10 @@ const FlowHandler = {
       if (photo && photo.length > 0) {
         const fileId = photo[photo.length - 1].file_id;
         try {
-          const fileLink      = await bot.getFileLink(fileId);
+          const fileLink = await bot.getFileLink(fileId);
           const fetchResponse = await fetch(fileLink);
-          const arrayBuffer   = await fetchResponse.arrayBuffer();
-          const base64        = Buffer.from(arrayBuffer).toString('base64');
+          const arrayBuffer = await fetchResponse.arrayBuffer();
+          const base64 = Buffer.from(arrayBuffer).toString('base64');
           referensiImages.push(base64);
         } catch (e) {
           console.error('Gagal mendownload gambar referensi:', e);
@@ -484,7 +492,7 @@ const FlowHandler = {
 
       await SessionService.updateSession(userId, 'menunggu_referensi', {
         ...session.data,
-        referensi_notes:  referensiNotes,
+        referensi_notes: referensiNotes,
         referensi_images: referensiImages,
       });
 
